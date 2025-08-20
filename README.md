@@ -105,4 +105,15 @@ RunFaster Menu
   Run all the above steps in one go with option `[8] Run All`.
 
 
+## 🚀 Installation & Usage
 
+```bash
+# Clone repository
+git clone https://github.com/74Thirsty/sysmon.git
+cd sysmon
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run SysMon
+python3 sysmon.py
