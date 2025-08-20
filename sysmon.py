@@ -7,7 +7,8 @@ import psutil
 import shutil
 import logging
 
-LOG_FILE = "/var/log/sysmon_tool.log"
+# === Logging Setup ===
+LOG_FILE = os.path.expanduser("~/sysmon_tool.log")   # safer than /var/log
 logging.basicConfig(filename=LOG_FILE, level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -17,7 +18,8 @@ logging.basicConfig(filename=LOG_FILE, level=logging.INFO,
 def run_cmd(cmd):
     try:
         return subprocess.check_output(cmd, shell=True, text=True).strip()
-    except:
+    except Exception as e:
+        logging.error(f"Command failed: {cmd} ({e})")
         return ""
 
 def get_default_interface():
@@ -56,6 +58,92 @@ def restart_wifi(iface):
     run_cmd(f"sudo ip link set {iface} down && sudo ip link set {iface} up")
     logging.info(f"Restarted interface {iface}")
 
+# ------------------------
+# RunFaster Integrated Functions
+# ------------------------
+def rf_install_dependencies():
+    run_cmd("dpkg -l | grep -q network-manager || (sudo apt update && sudo apt install -y network-manager)")
+    run_cmd("dpkg -l | grep -q bluetooth || (sudo apt update && sudo apt install -y bluetooth bluez)")
+    logging.info("Dependencies checked/installed")
+
+def rf_clear_apt_cache():
+    run_cmd("sudo apt clean && sudo apt autoclean")
+    logging.info("APT cache cleared")
+
+def rf_remove_temp_files():
+    run_cmd("sudo rm -rf /tmp/*")
+    logging.info("Temporary files removed")
+
+def rf_remove_user_cache():
+    cache_dir = os.path.expanduser("~/.cache")
+    if not os.path.exists(cache_dir):
+        return
+    for entry in os.listdir(cache_dir):
+        if any(browser in entry for browser in ["mozilla", "chromium", "google-chrome"]):
+            continue
+        run_cmd(f"rm -rf {os.path.join(cache_dir, entry)}")
+    logging.info("User cache cleared (browser data intact)")
+
+def rf_remove_unused_packages():
+    run_cmd("sudo apt autoremove -y")
+    logging.info("Unused packages removed")
+
+def rf_refresh_wifi():
+    run_cmd("sudo systemctl restart NetworkManager")
+    logging.info("WiFi refreshed")
+
+def rf_reset_bluetooth():
+    run_cmd("sudo systemctl restart bluetooth")
+    logging.info("Bluetooth reset")
+
+def runfaster_menu(stdscr):
+    curses.curs_set(0)
+    stdscr.nodelay(False)  # <— block for key input instead of constant loop
+
+    while True:
+        stdscr.clear()
+        menu_items = [
+            "RunFaster Menu",
+            "--------------",
+            "[1] Install Dependencies",
+            "[2] Clear APT Cache",
+            "[3] Remove Temp Files",
+            "[4] Remove User Cache (skip browsers)",
+            "[5] Remove Unused Packages",
+            "[6] Refresh WiFi",
+            "[7] Reset Bluetooth",
+            "[8] Run All",
+            "[q] Back"
+        ]
+        for i, line in enumerate(menu_items):
+            stdscr.addstr(i+1, 2, line)
+        stdscr.refresh()
+
+        key = stdscr.getch()  # waits here until a key is pressed
+        if key == ord('1'): rf_install_dependencies()
+        elif key == ord('2'): rf_clear_apt_cache()
+        elif key == ord('3'): rf_remove_temp_files()
+        elif key == ord('4'): rf_remove_user_cache()
+        elif key == ord('5'): rf_remove_unused_packages()
+        elif key == ord('6'): rf_refresh_wifi()
+        elif key == ord('7'): rf_reset_bluetooth()
+        elif key == ord('8'):
+            rf_install_dependencies()
+            rf_clear_apt_cache()
+            rf_remove_temp_files()
+            rf_remove_user_cache()
+            rf_remove_unused_packages()
+            rf_refresh_wifi()
+            rf_reset_bluetooth()
+            logging.info("All RunFaster tasks completed")
+        elif key == ord('q'):
+            break  # exit back to dashboard
+
+    stdscr.nodelay(True)  # restore non-blocking mode for dashboard
+
+# ------------------------
+# UI Helpers
+# ------------------------
 def draw_bar(stdscr, y, x, width, percent, color_pair):
     fill_width = int(width * percent / 100)
     stdscr.addstr(y, x, "[" + "#" * fill_width + "-" * (width - fill_width) + "]", curses.color_pair(color_pair))
@@ -70,6 +158,7 @@ def show_help(stdscr):
         "[r] Restart WiFi Interface",
         "[a] Change WiFi Adapter",
         "[w] Launch Wavemon",
+        "[x] RunFaster Utility",
         "[h] Show Help Menu",
         "[q] Quit",
         "",
@@ -129,7 +218,7 @@ def main(stdscr):
 
         # Footer Controls
         stdscr.attron(curses.color_pair(2))
-        stdscr.addstr(h-2, 2, "[t] TX Power  [f] Frequency  [r] Restart WiFi  [a] Adapter  [w] WiFi Stats  [h] Help  [q] Quit")
+        stdscr.addstr(h-2, 2, "[t] TX Power  [f] Frequency  [r] Restart WiFi  [a] Adapter  [w] WiFi Stats  [x] RunFaster  [h] Help  [q] Quit")
         stdscr.attroff(curses.color_pair(2))
 
         # Handle Keys
@@ -170,7 +259,9 @@ def main(stdscr):
             elif key == ord('w'):
                 curses.endwin()
                 subprocess.run("wavemon", shell=True)
-        except:
+            elif key == ord('x'):
+                runfaster_menu(stdscr)
+        except Exception:
             pass
 
         stdscr.refresh()
