@@ -107,13 +107,18 @@ RunFaster Menu
 
 ## 🚀 Installation & Usage
 
-```bash
 # Clone repository
+```
 git clone https://github.com/74Thirsty/sysmon.git
 cd sysmon
+```
 
 # Install dependencies
+```
 pip install -r requirements.txt
+```
 
 # Run SysMon
+```
 python3 sysmon.py
+```
